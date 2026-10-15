@@ -166,7 +166,7 @@ async def measurements(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def recommend_size(measurements_text: str):
     """Підбирає розмір за обхватом бюста та стегон; мірки можуть містити груди, талію, стегна."""
-    nums = [float(x.replace(",", ".")) for x in re.findall(r"\\d+(?:[.,]\\d+)?", measurements_text)]
+    nums = [float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", measurements_text)]
     if len(nums) < 2:
         return None
     bust, hips = nums[0], nums[-1]
