@@ -71,7 +71,13 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     if q.data == "manager":
-        await q.message.reply_text("Напишіть ваше питання — передам його менеджеру.")
+        await q.message.reply_text(
+            "👩‍💼 Зв’язатися з менеджером\n\n"
+            "📞 Оксана: 066 497 6073\n"
+            "📸 Наша сторінка Instagram ❣️\n"
+            "https://www.instagram.com/by_ks_jeans",
+            disable_web_page_preview=True,
+        )
         return WAIT_PRODUCT
     if q.data == "size":
         context.user_data["intent"] = "size"
@@ -92,10 +98,10 @@ async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["product"] = "Фото товару (додано до замовлення)"
         context.user_data["photo_file_id"] = photo.file_id
         await msg.reply_text(
-            "Фото отримано 📷 Щоб зорієнтуватися з розміром, напишіть ваш зріст у сантиметрах "
-            "(наприклад, 168). Фото товару саме по собі не дозволяє точно визначити розмір."
+            "Виміряйте бюст, талію на 1–2 пальці вище пупка та стегна в найширшому місці.\n\n"
+            "Допоможу Вам з розміром 😊"
         )
-        return WAIT_HEIGHT
+        return WAIT_MEASUREMENTS
     context.user_data["product"] = (msg.text or "").strip()
     await msg.reply_text("Який ваш зріст у сантиметрах? Наприклад: 168")
     return WAIT_HEIGHT
