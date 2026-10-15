@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -20,7 +21,7 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "-1004295486814")
 PAYMENT_INFO = (
     "🏦 *Реквізити для оплати*\n\n"
     "*Установа банку:* ПриватБанк\n"
-    "*IBAN:* `UA273052990000026004015510852`\n"
+    "*IBAN (натисніть, щоб скопіювати):*\n`UA273052990000026004015510852`\n"
     "*МФО банку:* 305299\n"
     "*Отримувач платежу:* ПАВЛІВ ОКСАНА БОГДАНІВНА\n"
     "*ЄДРПОУ:* 3316604824\n"
@@ -163,6 +164,34 @@ async def measurements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Як хочете, щоб одяг сидів?", reply_markup=kb)
     return WAIT_FIT
 
+def recommend_size(measurements_text: str):
+    """Підбирає орієнтовний розмір за обхватом бюста та стегон."""
+    nums = [float(x.replace(",", ".")) for x in re.findall(r"\\d+(?:[.,]\\d+)?", measurements_text)]
+    if len(nums) < 2:
+        return None
+    bust, hips = nums[0], nums[-1]
+    size_ranges = [
+        ("S", 86, 90),
+        ("M", 92, 98),
+        ("L", 100, 104),
+        ("XL", 106, 108),
+    ]
+
+    def distance(value, low, high):
+        if value < low:
+            return low - value
+        if value > high:
+            return value - high
+        return 0
+
+    # Найближчий розмір за сумарним відхиленням бюста та стегон.
+    size, low, high = min(
+        size_ranges,
+        key=lambda item: distance(bust, item[1], item[2]) +
+                         distance(hips, item[1], item[2])
+    )
+    return size, bust, hips
+
 async def fit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -170,9 +199,25 @@ async def fit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "fit_loose": "вільніше", "fit_regular": "по фігурі",
         "fit_tight": "обтисло", "fit_unknown": "не знаю"
     }.get(q.data, "не вказано")
+
+    recommendation = recommend_size(context.user_data.get("measurements", ""))
+    if recommendation:
+        size, bust, hips = recommendation
+        size_text = (
+            f"📏 За вашими мірками (бюст — {bust:g} см, стегна — {hips:g} см) "
+            f"орієнтовно підходить розмір **{size}**.\n\n"
+        )
+    else:
+        size_text = (
+            "Не вдалося визначити розмір автоматично — перевірте, будь ласка, "
+            "що ви вказали обхват бюста та стегон у сантиметрах. Менеджер допоможе уточнити розмір.\n\n"
+        )
+
     await q.message.reply_text(
-        "Дякую! Я передам дані менеджеру для перевірки розміру за таблицею конкретної моделі.\n\n"
+        size_text +
+        "Дякую! Я передам дані менеджеру для перевірки розміру конкретної моделі.\n\n"
         "Бажаєте замовити?",
+        parse_mode="Markdown",
         reply_markup=order_keyboard()
     )
     return WAIT_CONFIRM
