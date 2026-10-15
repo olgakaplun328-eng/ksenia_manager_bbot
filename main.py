@@ -15,8 +15,8 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "-1004295486814")
 
 (
     WAIT_PRODUCT, WAIT_HEIGHT, WAIT_MEASUREMENTS, WAIT_FIT, WAIT_CONFIRM,
-    WAIT_NAME, WAIT_PHONE, WAIT_CITY, WAIT_BRANCH, WAIT_PAYMENT
-) = range(10)
+    WAIT_NAME, WAIT_PHONE, WAIT_CITY, WAIT_BRANCH, WAIT_PAYMENT, WAIT_RECEIPT
+) = range(11)
 
 PAYMENT_INFO = (
     "🏦 *Реквізити для оплати*\n\n"
@@ -252,6 +252,59 @@ async def branch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Оберіть спосіб оплати:", reply_markup=payment_keyboard())
     return WAIT_PAYMENT
 
+def payment_followup_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Так, вже оплачую", callback_data="paid_now")],
+        [InlineKeyboardButton("Пізніше оплачу", callback_data="paid_later")],
+    ])
+
+async def payment_followup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    if q.data == "paid_now":
+        await q.message.reply_text(
+            "Можете оплачувати.\nСкиньте скрін (квитанцію) сюди в чат."
+        )
+        return WAIT_RECEIPT
+    await q.message.reply_text(
+        "Можете оплачувати.\nПісля оплати скиньте скрін (квитанцію) на вайбер 0664976073\n\n"
+        "Гарного дня 🌹",
+        reply_markup=persistent_menu()
+    )
+    context.user_data.clear()
+    return ConversationHandler.END
+
+async def receipt_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = update.message.photo[-1]
+    context.user_data["receipt_file_id"] = photo.file_id
+    admin_id = int(ADMIN_CHAT_ID) if ADMIN_CHAT_ID else None
+    if admin_id:
+        try:
+            await context.bot.send_photo(
+                chat_id=admin_id,
+                photo=photo.file_id,
+                caption=(
+                    "🧾 КВИТАНЦІЯ ПРО ОПЛАТУ\n"
+                    f"Клієнт: {context.user_data.get('name', 'не вказано')}\n"
+                    f"Телефон: {context.user_data.get('phone', 'не вказано')}\n"
+                    f"Товар: {context.user_data.get('product', 'не вказано')}\n"
+                    f"Спосіб оплати: {context.user_data.get('payment_method', 'не вказано')}\n"
+                    f"Telegram ID: {update.effective_user.id}"
+                )
+            )
+        except Exception:
+            logging.exception("Не вдалося переслати квитанцію менеджеру")
+            await update.message.reply_text(
+                "Фото отримала, але не вдалося переслати його менеджеру. Спробуйте ще раз пізніше."
+            )
+            return WAIT_RECEIPT
+    await update.message.reply_text(
+        "Дякую, квитанцію отримано та передано менеджеру.\n\nГарного дня 🌹",
+        reply_markup=persistent_menu()
+    )
+    context.user_data.clear()
+    return ConversationHandler.END
+
 async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -289,25 +342,17 @@ async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if q.data == "pay_full":
         await q.message.reply_text(PAYMENT_INFO, parse_mode="Markdown")
-        await q.message.reply_text(
-            "Можете оплачувати.\nПісля оплати скиньте скрін (квитанцію) сюди в чат."
-        )
     else:
         await q.message.reply_text(COD_INFO)
         await q.message.reply_text(
             "🏦 Для передплати 300 грн скористайтеся реквізитами нижче:\n\n" + PAYMENT_INFO,
             parse_mode="Markdown"
         )
-        await q.message.reply_text(
-            "Можете оплачувати.\nПісля оплати скиньте скрін (квитанцію) сюди в чат."
-        )
     await q.message.reply_text(
-        "Дякуємо за замовлення! 🛍️ Менеджер підтвердить наявність, розмір і ціну. "
-        "Фото товару та дані замовлення передані менеджеру. Якщо виникнуть питання — напишіть у цей чат.",
-        reply_markup=persistent_menu()
+        "Як плануєте оплатити?",
+        reply_markup=payment_followup_keyboard()
     )
-    context.user_data.clear()
-    return ConversationHandler.END
+    return WAIT_PAYMENT
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -345,7 +390,8 @@ def main():
             WAIT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone)],
             WAIT_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, city)],
             WAIT_BRANCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, branch)],
-            WAIT_PAYMENT: [CallbackQueryHandler(payment, pattern="^pay_")],
+            WAIT_PAYMENT: [CallbackQueryHandler(payment, pattern="^pay_"), CallbackQueryHandler(payment_followup, pattern="^paid_")],
+            WAIT_RECEIPT: [MessageHandler(filters.PHOTO, receipt_photo)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         allow_reentry=True
