@@ -1,6 +1,6 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters
@@ -45,6 +45,44 @@ def menu():
         [InlineKeyboardButton("🛍️ Хочу замовити", callback_data="order")],
         [InlineKeyboardButton("👩‍💼 Зв’язатися з менеджером", callback_data="manager")],
     ])
+
+def persistent_menu():
+    return ReplyKeyboardMarkup(
+        [["📏 Підібрати розмір", "🛍️ Замовити"],
+         ["👩‍💼 Менеджер"]],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Оберіть дію або надішліть фото"
+    )
+
+async def bottom_menu_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.effective_message.text or "").strip()
+    context.user_data.clear()
+    if text == "👩‍💼 Менеджер":
+        await update.effective_message.reply_text(
+            "👩‍💼 Зв’язатися з менеджером\\n\\n"
+            "📞 Оксана: 066 497 6073\\n"
+            "📸 Наша сторінка Instagram ❣️\\n"
+            "https://www.instagram.com/by_ks_jeans",
+            reply_markup=persistent_menu(),
+            disable_web_page_preview=True,
+        )
+        return WAIT_PRODUCT
+    if text == "📏 Підібрати розмір":
+        context.user_data["intent"] = "size"
+        await update.effective_message.reply_text(
+            "Надішліть фото товару або скриншот.\\n\\n"
+            "Виміряйте бюст, талію на 1–2 пальці вище пупка та стегна в найширшому місці.\\n"
+            "Допоможу Вам з розміром ❤️",
+            reply_markup=persistent_menu(),
+        )
+        return WAIT_PRODUCT
+    await update.effective_message.reply_text(
+        "Надішліть фото товару або скриншот, який бажаєте замовити.",
+        reply_markup=persistent_menu(),
+    )
+    context.user_data["intent"] = "order"
+    return WAIT_PRODUCT
 
 def order_keyboard():
     return InlineKeyboardMarkup([
@@ -233,9 +271,13 @@ def main():
         raise RuntimeError("Не задано BOT_TOKEN. Додайте його у Railway → сервіс → Variables.")
     app = Application.builder().token(BOT_TOKEN).build()
     conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[
+            CommandHandler("start", start),
+            MessageHandler(filters.Regex(r"^(📏 Підібрати розмір|🛍️ Замовити|👩‍💼 Менеджер)$"), bottom_menu_text),
+        ],
         states={
             WAIT_PRODUCT: [
+                MessageHandler(filters.Regex(r"^(📏 Підібрати розмір|🛍️ Замовити|👩‍💼 Менеджер)$"), bottom_menu_text),
                 CallbackQueryHandler(menu_choice, pattern="^(size|order|manager)$"),
                 MessageHandler(filters.PHOTO | (filters.TEXT & ~filters.COMMAND), product)
             ],
