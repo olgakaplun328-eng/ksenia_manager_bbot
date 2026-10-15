@@ -165,7 +165,7 @@ async def measurements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return WAIT_FIT
 
 def recommend_size(measurements_text: str):
-    """Підбирає орієнтовний розмір за обхватом бюста та стегон."""
+    """Підбирає розмір за обхватом бюста та стегон; мірки можуть містити груди, талію, стегна."""
     nums = [float(x.replace(",", ".")) for x in re.findall(r"\\d+(?:[.,]\\d+)?", measurements_text)]
     if len(nums) < 2:
         return None
@@ -184,7 +184,7 @@ def recommend_size(measurements_text: str):
             return value - high
         return 0
 
-    # Найближчий розмір за сумарним відхиленням бюста та стегон.
+    # Choose the band with the smallest combined distance for bust and hips.
     size, low, high = min(
         size_ranges,
         key=lambda item: distance(bust, item[1], item[2]) +
@@ -205,13 +205,15 @@ async def fit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         size, bust, hips = recommendation
         size_text = (
             f"📏 За вашими мірками (бюст — {bust:g} см, стегна — {hips:g} см) "
-            f"орієнтовно підходить розмір **{size}**.\n\n"
+            f"вам орієнтовно підходить розмір **{size}**.\n\n"
         )
+        context.user_data["recommended_size"] = size
     else:
         size_text = (
-            "Не вдалося визначити розмір автоматично — перевірте, будь ласка, "
-            "що ви вказали обхват бюста та стегон у сантиметрах. Менеджер допоможе уточнити розмір.\n\n"
+            "Не вдалося визначити розмір за вказаними мірками. "
+            "Менеджер допоможе уточнити його.\n\n"
         )
+        context.user_data["recommended_size"] = "потрібно уточнити"
 
     await q.message.reply_text(
         size_text +
@@ -349,7 +351,7 @@ async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     await q.message.reply_text(
-        "Як плануєте оплатити?",
+        "Оберіть, будь ласка:",
         reply_markup=payment_followup_keyboard()
     )
     return WAIT_PAYMENT
