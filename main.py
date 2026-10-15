@@ -244,11 +244,22 @@ async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if q.data == "pay_full":
         await q.message.reply_text(PAYMENT_INFO, parse_mode="Markdown")
+        await q.message.reply_text(
+            "Можете оплачувати.\nПісля оплати скиньте скрін (квитанцію) сюди в чат."
+        )
     else:
         await q.message.reply_text(COD_INFO)
+        await q.message.reply_text(
+            "🏦 Для передплати 300 грн скористайтеся реквізитами нижче:\n\n" + PAYMENT_INFO,
+            parse_mode="Markdown"
+        )
+        await q.message.reply_text(
+            "Можете оплачувати.\nПісля оплати скиньте скрін (квитанцію) сюди в чат."
+        )
     await q.message.reply_text(
         "Дякуємо за замовлення! 🛍️ Менеджер підтвердить наявність, розмір і ціну. "
-        "Якщо виникнуть питання — напишіть у цей чат."
+        "Фото товару та дані замовлення передані менеджеру. Якщо виникнуть питання — напишіть у цей чат.",
+        reply_markup=persistent_menu()
     )
     context.user_data.clear()
     return ConversationHandler.END
